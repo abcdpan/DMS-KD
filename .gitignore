@@ -1,0 +1,9 @@
+# script
+git.sh
+/scripts
+# paths to teacher weights, data, output
+/download_ckpts
+/data
+/output
+# paths to teacher weights, data, output for CTKD
+/CTKD/save
