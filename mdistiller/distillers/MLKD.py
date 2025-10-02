@@ -27,6 +27,24 @@ def kd_loss(logits_student_in, logits_teacher_in, temperature, reduce=True, logi
     loss_kd *= temperature**2
     return loss_kd
 
+def compute_weighted_ce_with_hard_mining(logits_student, logits_teacher, target,
+                                         hard_ratio, hard_weight, easy_weight, ce_loss_weight):
+
+    per_sample_loss_teacher = F.cross_entropy(logits_teacher, target, reduction='none')
+
+    hard_samples_num = int(hard_ratio * len(per_sample_loss_teacher))
+    _, hard_indices = torch.topk(per_sample_loss_teacher, hard_samples_num)
+
+    is_hard = torch.zeros_like(per_sample_loss_teacher, dtype=torch.bool)
+    is_hard[hard_indices] = True
+    is_easy = ~is_hard
+
+    per_sample_loss_student = F.cross_entropy(logits_student, target, reduction='none')
+    hard_loss = per_sample_loss_student[is_hard].mean() if is_hard.any() else 0.0
+    easy_loss = per_sample_loss_student[is_easy].mean() if is_easy.any() else 0.0
+
+    return ce_loss_weight * (hard_weight * hard_loss + easy_weight * easy_loss)
+
 
 def cc_loss(logits_student, logits_teacher, temperature, reduce=True):
     batch_size, class_num = logits_teacher.shape
@@ -119,7 +137,19 @@ class MLKD(Distiller):
         class_conf_mask = class_confidence.le(class_confidence_thresh).bool()
 
         # losses
-        loss_ce = self.ce_loss_weight * (F.cross_entropy(logits_student_weak, target) + F.cross_entropy(logits_student_strong, target))
+        # loss_ce = self.ce_loss_weight * (F.cross_entropy(logits_student_weak, target) + F.cross_entropy(logits_student_strong, target))
+
+        loss_ce = compute_weighted_ce_with_hard_mining(
+            logits_student_weak, logits_teacher_weak, target,
+            self.hard_ratio, self.hard_weight,
+            self.easy_weight, self.ce_loss_weight
+        ) + compute_weighted_ce_with_hard_mining(
+            logits_student_strong, logits_teacher_strong, target,
+            self.hard_ratio, self.hard_weight,
+            self.easy_weight, self.ce_loss_weight
+        )
+
+
         loss_ss = 9.0 * F.mse_loss(logits_student_weak,logits_student_strong)
 
 

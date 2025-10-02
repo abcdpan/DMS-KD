@@ -97,7 +97,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser("training for knowledge distillation.")
-    parser.add_argument("--cfg", type=str, default="")
+    parser.add_argument("--cfg", type=str, default="D:/papers/code_submit/DSM-KD/configs/cifar100/kd/resnet32x4_resnet8x4.yaml")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--logit-stand", action="store_true")
     parser.add_argument("--base-temp", type=float, default=2)

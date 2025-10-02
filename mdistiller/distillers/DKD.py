@@ -58,6 +58,25 @@ def cat_mask(t, mask1, mask2):
     return rt
 
 
+def compute_weighted_ce_with_hard_mining(logits_student, logits_teacher, target,
+                                         hard_ratio, hard_weight, easy_weight, ce_loss_weight):
+
+    per_sample_loss_teacher = F.cross_entropy(logits_teacher, target, reduction='none')
+
+    hard_samples_num = int(hard_ratio * len(per_sample_loss_teacher))
+    _, hard_indices = torch.topk(per_sample_loss_teacher, hard_samples_num)
+
+    is_hard = torch.zeros_like(per_sample_loss_teacher, dtype=torch.bool)
+    is_hard[hard_indices] = True
+    is_easy = ~is_hard
+
+    per_sample_loss_student = F.cross_entropy(logits_student, target, reduction='none')
+    hard_loss = per_sample_loss_student[is_hard].mean() if is_hard.any() else 0.0
+    easy_loss = per_sample_loss_student[is_easy].mean() if is_easy.any() else 0.0
+
+    return ce_loss_weight * (hard_weight * hard_loss + easy_weight * easy_loss)
+
+
 class DKD(Distiller):
     """Decoupled Knowledge Distillation(CVPR 2022)"""
 
@@ -76,7 +95,13 @@ class DKD(Distiller):
             logits_teacher, _ = self.teacher(image)
 
         # losses
-        loss_ce = self.ce_loss_weight * F.cross_entropy(logits_student, target)
+        # loss_ce = self.ce_loss_weight * F.cross_entropy(logits_student, target)
+        loss_ce = compute_weighted_ce_with_hard_mining(
+            logits_student, logits_teacher, target,
+            self.hard_ratio, self.hard_weight,
+            self.easy_weight, self.ce_loss_weight
+        )
+
         loss_dkd = min(kwargs["epoch"] / self.warmup, 1.0) * dkd_loss(
             logits_student,
             logits_teacher,

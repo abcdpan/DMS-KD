@@ -20,5 +20,9 @@ KD:
   LOSS:
     CE_WEIGHT: 0.1
     KD_WEIGHT: 9
+    HARD_RATIO: 0.3
+    EASY_WEIGHT: 1.0
+    HARD_WEIGHT: 2.0
   TEMPERATURE: 2
+
 
